@@ -8,8 +8,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Pencil, Trash2, Plus, Search, Mail, Phone, Calendar, User } from "lucide-react";
+
+const API_BASE = (import.meta as any)?.env?.VITE_API_BASE ?? "http://localhost:3001";
 
 interface User {
   id: string;
@@ -36,30 +37,21 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const formattedUsers: User[] = (data || []).map((profile) => ({
-        id: profile.id,
-        name: profile.name,
-        email: profile.email,
-        role: profile.role,
-        status: profile.status as "active" | "inactive",
-        phone: profile.phone || undefined,
-        joinDate: new Date(profile.created_at || "").toISOString().split("T")[0],
+      const res = await fetch(`${API_BASE}/api/users`);
+      if (!res.ok) throw new Error("Failed to fetch users");
+      const data = await res.json();
+      const formattedUsers: User[] = (data || []).map((row: any) => ({
+        id: String(row.id),
+        name: row.name,
+        email: row.email,
+        role: row.role || "Employee",
+        status: row.isActive ? "active" : (row.status || "inactive"),
+        phone: row.phone || undefined,
+        joinDate: (row.createdAt ? new Date(row.createdAt) : new Date()).toISOString().split("T")[0],
       }));
-
       setUsers(formattedUsers);
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -72,9 +64,8 @@ const UserManagement = () => {
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      const { error } = await supabase.from("profiles").delete().eq("id", userId);
-
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/api/users/${userId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete user");
 
       setUsers(users.filter((user) => user.id !== userId));
       toast({
@@ -99,18 +90,18 @@ const UserManagement = () => {
     if (!editingUser) return;
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
+      const res = await fetch(`${API_BASE}/api/users/${editingUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: userData.name,
           email: userData.email,
           phone: userData.phone,
           role: userData.role,
           status: userData.status,
-        })
-        .eq("id", editingUser.id);
-
-      if (error) throw error;
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update user");
 
       setUsers(
         users.map((user) =>
@@ -134,30 +125,31 @@ const UserManagement = () => {
 
   const handleAddUser = async (userData: Omit<User, "id">) => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .insert({
+      const res = await fetch(`${API_BASE}/api/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: userData.name,
           email: userData.email,
-          phone: userData.phone,
           role: userData.role,
           status: userData.status,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
+          phone: userData.phone,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to add user");
+      }
+      const data = await res.json();
       const newUser: User = {
-        id: data.id,
+        id: String(data.id),
         name: data.name,
         email: data.email,
-        role: data.role,
-        status: data.status as "active" | "inactive",
+        role: data.role || "Employee",
+        status: (data.isActive ? "active" : (data.status || "inactive")) as "active" | "inactive",
         phone: data.phone || undefined,
-        joinDate: new Date(data.created_at).toISOString().split("T")[0],
+        joinDate: (data.createdAt ? new Date(data.createdAt) : new Date()).toISOString().split("T")[0],
       };
-
       setUsers([newUser, ...users]);
       toast({
         title: "User Added",

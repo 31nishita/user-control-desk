@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+const API_BASE = (import.meta as any)?.env?.VITE_API_BASE ?? "http://localhost:3001";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,11 +21,37 @@ const Dashboard = () => {
     });
   };
 
-  const stats = [
-    { title: "Total Users", value: "24", icon: Users, color: "text-primary" },
-    { title: "Active Sessions", value: "18", icon: Shield, color: "text-success" },
-    { title: "Pending Actions", value: "3", icon: Settings, color: "text-warning" },
-  ];
+  const [stats, setStats] = useState([
+    { title: "Total Users", value: "-", icon: Users, color: "text-primary" },
+    { title: "Active Sessions", value: "-", icon: Shield, color: "text-success" },
+    { title: "Pending Actions", value: "-", icon: Settings, color: "text-warning" },
+  ]);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = () => {
+      fetch(`${API_BASE}/api/stats`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!mounted) return;
+          setStats([
+            { title: "Total Users", value: String(data.totalUsers ?? 0), icon: Users, color: "text-primary" },
+            { title: "Active Sessions", value: String(data.activeSessions ?? 0), icon: Shield, color: "text-success" },
+            { title: "Pending Actions", value: String(data.pendingActions ?? 0), icon: Settings, color: "text-warning" },
+          ]);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setStats((s) => s.map((it) => ({ ...it, value: "0" })));
+        });
+    };
+    load();
+    const id = setInterval(load, 5000);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
