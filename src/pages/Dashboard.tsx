@@ -1,24 +1,23 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, Users, Plus, Settings, Shield } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { LogOut, Users, Settings, Shield } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("users");
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const { signOut, user } = useAuth();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    navigate("/login");
   };
 
   const stats = [
@@ -47,12 +46,14 @@ const Dashboard = () => {
               <div className="flex items-center space-x-3">
                 <Avatar className="w-8 h-8">
                   <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                    MG
+                    {user?.email?.substring(0, 2).toUpperCase() || "MG"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-foreground">Manager</p>
-                  <p className="text-xs text-muted-foreground">Admin Access</p>
+                  <p className="text-sm font-medium text-foreground truncate max-w-[150px]">
+                    {user?.email}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Manager Access</p>
                 </div>
               </div>
               

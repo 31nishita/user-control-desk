@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { Pencil, Trash2, Plus, Search, Mail, Phone, Calendar, User } from "lucide-react";
 
 interface User {
@@ -20,56 +21,73 @@ interface User {
   joinDate: string;
 }
 
-const mockUsers: User[] = [
-  {
-    id: "1",
-    name: "John Doe",
-    email: "john.doe@company.com",
-    role: "Employee",
-    status: "active",
-    phone: "+1 (555) 123-4567",
-    joinDate: "2024-01-15"
-  },
-  {
-    id: "2",
-    name: "Sarah Wilson",
-    email: "sarah.wilson@company.com",
-    role: "Team Lead",
-    status: "active",
-    phone: "+1 (555) 987-6543",
-    joinDate: "2023-11-20"
-  },
-  {
-    id: "3",
-    name: "Mike Johnson",
-    email: "mike.johnson@company.com",
-    role: "Employee",
-    status: "inactive",
-    phone: "+1 (555) 456-7890",
-    joinDate: "2024-02-10"
-  },
-];
-
 const UserManagement = () => {
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const formattedUsers: User[] = (data || []).map((profile) => ({
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role,
+        status: profile.status as "active" | "inactive",
+        phone: profile.phone || undefined,
+        joinDate: new Date(profile.created_at || "").toISOString().split("T")[0],
+      }));
+
+      setUsers(formattedUsers);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter(user => user.id !== userId));
-    toast({
-      title: "User Deleted",
-      description: "User has been successfully removed from the system.",
-      variant: "destructive",
-    });
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      const { error } = await supabase.from("profiles").delete().eq("id", userId);
+
+      if (error) throw error;
+
+      setUsers(users.filter((user) => user.id !== userId));
+      toast({
+        title: "User Deleted",
+        description: "User has been successfully removed from the system.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleEditUser = (user: User) => {
@@ -77,34 +95,94 @@ const UserManagement = () => {
     setIsEditDialogOpen(true);
   };
 
-  const handleSaveUser = (userData: Partial<User>) => {
-    if (editingUser) {
-      setUsers(users.map(user => 
-        user.id === editingUser.id 
-          ? { ...user, ...userData }
-          : user
-      ));
+  const handleSaveUser = async (userData: Partial<User>) => {
+    if (!editingUser) return;
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone,
+          role: userData.role,
+          status: userData.status,
+        })
+        .eq("id", editingUser.id);
+
+      if (error) throw error;
+
+      setUsers(
+        users.map((user) =>
+          user.id === editingUser.id ? { ...user, ...userData } : user
+        )
+      );
       toast({
         title: "User Updated",
         description: "User information has been successfully updated.",
       });
+      setIsEditDialogOpen(false);
+      setEditingUser(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
-    setIsEditDialogOpen(false);
-    setEditingUser(null);
   };
 
-  const handleAddUser = (userData: Omit<User, 'id'>) => {
-    const newUser: User = {
-      ...userData,
-      id: Date.now().toString(),
-    };
-    setUsers([...users, newUser]);
-    toast({
-      title: "User Added",
-      description: "New user has been successfully added to the system.",
-    });
-    setIsAddDialogOpen(false);
+  const handleAddUser = async (userData: Omit<User, "id">) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .insert({
+          name: userData.name,
+          email: userData.email,
+          phone: userData.phone,
+          role: userData.role,
+          status: userData.status,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newUser: User = {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        status: data.status as "active" | "inactive",
+        phone: data.phone || undefined,
+        joinDate: new Date(data.created_at).toISOString().split("T")[0],
+      };
+
+      setUsers([newUser, ...users]);
+      toast({
+        title: "User Added",
+        description: "New user has been successfully added to the system.",
+      });
+      setIsAddDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading users...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
