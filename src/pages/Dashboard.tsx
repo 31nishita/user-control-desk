@@ -31,6 +31,21 @@ const Dashboard = () => {
     let mounted = true;
     const load = async () => {
       try {
+        // Check if Supabase is properly configured
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        
+        if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+          console.warn('Supabase not configured, using mock data');
+          if (!mounted) return;
+          setStats([
+            { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
+            { title: "Active Users", value: "0", icon: Shield, color: "text-success" },
+            { title: "Admin Access", value: "Demo Mode", icon: Settings, color: "text-warning" },
+          ]);
+          return;
+        }
+
         const { count: totalUsers } = await supabase
           .from("profiles")
           .select("*", { count: "exact", head: true });
