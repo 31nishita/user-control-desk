@@ -34,6 +34,16 @@ const UserManagement = () => {
     fetchUsers();
   }, []);
 
+  const notifyUserStats = (usersList: User[]) => {
+    try {
+      const total = usersList.length;
+      const active = usersList.filter((u) => u.status === "active").length;
+      window.dispatchEvent(
+        new CustomEvent("users:changed", { detail: { total, active } })
+      );
+    } catch {}
+  };
+
   const fetchUsers = async () => {
     try {
       // Check if Supabase is properly configured
@@ -72,6 +82,7 @@ const UserManagement = () => {
           }
         ];
         setUsers(mockUsers);
+        notifyUserStats(mockUsers);
         setIsLoading(false);
         return;
       }
@@ -93,6 +104,7 @@ const UserManagement = () => {
         joinDate: row.created_at ? new Date(row.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       }));
       setUsers(formattedUsers);
+      notifyUserStats(formattedUsers);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -113,7 +125,9 @@ const UserManagement = () => {
       
       if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
         // Demo mode - just remove from local state
-        setUsers(users.filter((user) => user.id !== userId));
+        const updated = users.filter((user) => user.id !== userId);
+        setUsers(updated);
+        notifyUserStats(updated);
         toast({
           title: "User Deleted",
           description: "User has been successfully removed from the system.",
@@ -128,7 +142,9 @@ const UserManagement = () => {
 
       if (error) throw error;
 
-      setUsers(users.filter((user) => user.id !== userId));
+      const updated = users.filter((user) => user.id !== userId);
+      setUsers(updated);
+      notifyUserStats(updated);
       toast({
         title: "User Deleted",
         description: "User has been successfully removed from the system.",
@@ -157,11 +173,11 @@ const UserManagement = () => {
       
       if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
         // Demo mode - just update local state
-        setUsers(
-          users.map((user) =>
-            user.id === editingUser.id ? { ...user, ...userData } : user
-          )
+        const updated = users.map((user) =>
+          user.id === editingUser.id ? { ...user, ...userData } : user
         );
+        setUsers(updated);
+        notifyUserStats(updated);
         toast({
           title: "User Updated",
           description: "User information has been successfully updated.",
@@ -185,11 +201,11 @@ const UserManagement = () => {
 
       if (error) throw error;
 
-      setUsers(
-        users.map((user) =>
-          user.id === editingUser.id ? { ...user, ...userData } : user
-        )
+      const updated = users.map((user) =>
+        user.id === editingUser.id ? { ...user, ...userData } : user
       );
+      setUsers(updated);
+      notifyUserStats(updated);
       toast({
         title: "User Updated",
         description: "User information has been successfully updated.",
@@ -222,7 +238,9 @@ const UserManagement = () => {
           phone: userData.phone,
           joinDate: new Date().toISOString().split("T")[0],
         };
-        setUsers([newUser, ...users]);
+        const updated = [newUser, ...users];
+        setUsers(updated);
+        notifyUserStats(updated);
         toast({
           title: "User Added",
           description: "New user has been successfully added.",
@@ -272,7 +290,9 @@ const UserManagement = () => {
         phone: data.phone || undefined,
         joinDate: data.created_at ? new Date(data.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       };
-      setUsers([newUser, ...users]);
+      const updated = [newUser, ...users];
+      setUsers(updated);
+      notifyUserStats(updated);
       toast({
         title: "User Added",
         description: "New user has been successfully added. A temporary password has been generated.",

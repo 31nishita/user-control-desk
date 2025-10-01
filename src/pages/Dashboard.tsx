@@ -67,10 +67,22 @@ const Dashboard = () => {
       }
     };
     load();
+    // Listen to user changes from UserManagement to update stats instantly
+    const onUsersChanged = (e: any) => {
+      if (!mounted) return;
+      const detail = e?.detail || {};
+      setStats([
+        { title: "Total Users", value: String(detail.total ?? 0), icon: Users, color: "text-primary" },
+        { title: "Active Users", value: String(detail.active ?? 0), icon: Shield, color: "text-success" },
+        { title: "Admin Access", value: import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY && import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co' && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY !== 'placeholder-key' ? "Active" : "Demo Mode", icon: Settings, color: "text-warning" },
+      ]);
+    };
+    window.addEventListener("users:changed", onUsersChanged as EventListener);
     const id = setInterval(load, 30000); // Check every 30 seconds
     return () => {
       mounted = false;
       clearInterval(id);
+      window.removeEventListener("users:changed", onUsersChanged as EventListener);
     };
   }, []);
 

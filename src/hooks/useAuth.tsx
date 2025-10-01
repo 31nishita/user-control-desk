@@ -15,7 +15,14 @@ export const useAuth = () => {
     
     if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
       console.warn('Supabase not configured, demo mode enabled');
-      // In demo mode, don't set user to null initially - let the signIn function handle it
+      // In demo mode, hydrate user from localStorage if present so routes work across pages
+      try {
+        const stored = localStorage.getItem('auth_user');
+        if (stored) {
+          const parsed = JSON.parse(stored) as User;
+          setUser(parsed);
+        }
+      } catch {}
       setLoading(false);
       return;
     }
@@ -45,6 +52,7 @@ export const useAuth = () => {
         user_metadata: { name: 'Demo User' }
       } as User;
       setUser(mockUser);
+      try { localStorage.setItem('auth_user', JSON.stringify(mockUser)); } catch {}
       return { data: { user: mockUser }, error: null };
     }
 
@@ -86,6 +94,7 @@ export const useAuth = () => {
     if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
       // Demo mode - just clear user state
       setUser(null);
+      try { localStorage.removeItem('auth_user'); } catch {}
       navigate("/login");
       return;
     }
