@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-const API_BASE = (import.meta as any)?.env?.VITE_API_BASE ?? "http://localhost:3001";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -7,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, Users, Settings, Shield } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("users");
@@ -22,31 +22,37 @@ const Dashboard = () => {
   };
 
   const [stats, setStats] = useState([
-    { title: "Total Users", value: "-", icon: Users, color: "text-primary" },
-    { title: "Active Sessions", value: "-", icon: Shield, color: "text-success" },
-    { title: "Pending Actions", value: "-", icon: Settings, color: "text-warning" },
+    { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
+    { title: "Active Users", value: "0", icon: Shield, color: "text-success" },
+    { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
   ]);
 
   useEffect(() => {
     let mounted = true;
-    const load = () => {
-      fetch(`${API_BASE}/api/stats`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (!mounted) return;
-          setStats([
-            { title: "Total Users", value: String(data.totalUsers ?? 0), icon: Users, color: "text-primary" },
-            { title: "Active Sessions", value: String(data.activeSessions ?? 0), icon: Shield, color: "text-success" },
-            { title: "Pending Actions", value: String(data.pendingActions ?? 0), icon: Settings, color: "text-warning" },
-          ]);
-        })
-        .catch(() => {
-          if (!mounted) return;
-          setStats((s) => s.map((it) => ({ ...it, value: "0" })));
-        });
+    const load = async () => {
+      try {
+        const { count: totalUsers } = await supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true });
+        
+        const { count: activeSessions } = await supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "active");
+
+        if (!mounted) return;
+        setStats([
+          { title: "Total Users", value: String(totalUsers ?? 0), icon: Users, color: "text-primary" },
+          { title: "Active Users", value: String(activeSessions ?? 0), icon: Shield, color: "text-success" },
+          { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
+        ]);
+      } catch (error) {
+        if (!mounted) return;
+        setStats((s) => s.map((it, idx) => ({ ...it, value: idx === 2 ? "Active" : "0" })));
+      }
     };
     load();
-    const id = setInterval(load, 5000);
+    const id = setInterval(load, 30000); // Check every 30 seconds
     return () => {
       mounted = false;
       clearInterval(id);

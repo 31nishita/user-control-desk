@@ -133,9 +133,27 @@ const UserManagement = () => {
 
   const handleAddUser = async (userData: Omit<User, "id">) => {
     try {
+      // First, create the auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: Math.random().toString(36).slice(-8) + "A1!", // Generate temp password
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            name: userData.name,
+          },
+        },
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Failed to create user");
+
+      // Then create/update the profile
       const { data, error } = await supabase
         .from("profiles")
-        .insert({
+        .upsert({
+          id: authData.user.id,
+          user_id: authData.user.id,
           name: userData.name,
           email: userData.email,
           role: userData.role,
@@ -159,7 +177,7 @@ const UserManagement = () => {
       setUsers([newUser, ...users]);
       toast({
         title: "User Added",
-        description: "New user has been successfully added to the system.",
+        description: "New user has been successfully added. A temporary password has been generated.",
       });
       setIsAddDialogOpen(false);
     } catch (error: any) {
