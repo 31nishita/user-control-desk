@@ -9,8 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Pencil, Trash2, Plus, Search, Mail, Phone, Calendar, User } from "lucide-react";
-
-const API_BASE = (import.meta as any)?.env?.VITE_API_BASE ?? "http://localhost:3001";
+import { supabase } from "@/integrations/supabase/client";
 
 interface User {
   id: string;
@@ -37,17 +36,21 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/users`);
-      if (!res.ok) throw new Error("Failed to fetch users");
-      const data = await res.json();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
       const formattedUsers: User[] = (data || []).map((row: any) => ({
         id: String(row.id),
         name: row.name,
         email: row.email,
-        role: row.role || "Employee",
-        status: row.isActive ? "active" : (row.status || "inactive"),
+        role: row.role || "user",
+        status: row.status || "active",
         phone: row.phone || undefined,
-        joinDate: (row.createdAt ? new Date(row.createdAt) : new Date()).toISOString().split("T")[0],
+        joinDate: row.created_at ? new Date(row.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       }));
       setUsers(formattedUsers);
     } catch (error: any) {
@@ -64,8 +67,12 @@ const UserManagement = () => {
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/users/${userId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete user");
+      const { error } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("id", userId);
+
+      if (error) throw error;
 
       setUsers(users.filter((user) => user.id !== userId));
       toast({
@@ -90,18 +97,19 @@ const UserManagement = () => {
     if (!editingUser) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/users/${editingUser.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { error } = await supabase
+        .from("profiles")
+        .update({
           name: userData.name,
           email: userData.email,
           phone: userData.phone,
           role: userData.role,
           status: userData.status,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to update user");
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingUser.id);
+
+      if (error) throw error;
 
       setUsers(
         users.map((user) =>
@@ -125,30 +133,28 @@ const UserManagement = () => {
 
   const handleAddUser = async (userData: Omit<User, "id">) => {
     try {
-      const res = await fetch(`${API_BASE}/api/users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { data, error } = await supabase
+        .from("profiles")
+        .insert({
           name: userData.name,
           email: userData.email,
           role: userData.role,
           status: userData.status,
           phone: userData.phone,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to add user");
-      }
-      const data = await res.json();
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
       const newUser: User = {
         id: String(data.id),
         name: data.name,
         email: data.email,
-        role: data.role || "Employee",
-        status: (data.isActive ? "active" : (data.status || "inactive")) as "active" | "inactive",
+        role: data.role || "user",
+        status: data.status || "active",
         phone: data.phone || undefined,
-        joinDate: (data.createdAt ? new Date(data.createdAt) : new Date()).toISOString().split("T")[0],
+        joinDate: data.created_at ? new Date(data.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       };
       setUsers([newUser, ...users]);
       toast({
@@ -394,10 +400,9 @@ const UserDialog = ({ title, description, user, onSave, onCancel }: UserDialogPr
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Employee">Employee</SelectItem>
-                <SelectItem value="Team Lead">Team Lead</SelectItem>
-                <SelectItem value="Manager">Manager</SelectItem>
-                <SelectItem value="Admin">Admin</SelectItem>
+                <SelectItem value="user">User</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
           </div>
