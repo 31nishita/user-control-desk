@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, Users, Settings, Shield } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("users");
@@ -31,6 +31,16 @@ const Dashboard = () => {
     let mounted = true;
     const load = async () => {
       try {
+        if (!isSupabaseConfigured) {
+          if (!mounted) return;
+          setStats([
+            { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
+            { title: "Active Users", value: "0", icon: Shield, color: "text-success" },
+            { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
+          ]);
+          return;
+        }
+
         const { count: totalUsers } = await supabase
           .from("profiles")
           .select("*", { count: "exact", head: true });

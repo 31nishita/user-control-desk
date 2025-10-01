@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Pencil, Trash2, Plus, Search, Mail, Phone, Calendar, User } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
 
 interface User {
   id: string;
@@ -31,11 +31,19 @@ const UserManagement = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchUsers();
+    if (isSupabaseConfigured) {
+      fetchUsers();
+    } else {
+      setIsLoading(false);
+    }
   }, []);
 
   const fetchUsers = async () => {
     try {
+      if (!isSupabaseConfigured) {
+        setUsers([]);
+        return;
+      }
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -197,6 +205,24 @@ const UserManagement = () => {
           <p className="text-muted-foreground">Loading users...</p>
         </div>
       </div>
+    );
+  }
+
+  if (!isSupabaseConfigured) {
+    return (
+      <Card className="bg-gradient-card border-border/50 shadow-card">
+        <CardHeader>
+          <CardTitle>Supabase not configured</CardTitle>
+          <CardDescription>
+            Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in an `.env` file to enable data features.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm text-muted-foreground">
+            The UI is functional, but data will not load until environment variables are provided and the dev server is restarted.
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
