@@ -38,8 +38,6 @@ const UserManagement = () => {
     try {
       const total = usersList.length;
       const active = usersList.filter((u) => u.status === "active").length;
-      // Persist latest stats for demo mode resilience
-      try { localStorage.setItem("user_stats", JSON.stringify({ total, active })); } catch {}
       window.dispatchEvent(
         new CustomEvent("users:changed", { detail: { total, active } })
       );
