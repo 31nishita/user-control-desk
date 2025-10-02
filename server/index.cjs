@@ -3,12 +3,13 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
-const { getDb } = require("./sqlite.cjs");
+const { getDb, DB_PATH } = require("./sqlite.cjs");
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || "0.0.0.0";
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
 
 app.use(cors());
@@ -100,6 +101,11 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
 	return res.json({ user: req.user });
 });
 
+// Lightweight health endpoint
+app.get("/health", (_req, res) => {
+	return res.json({ ok: true });
+});
+
 app.get("/api/stats", (_req, res) => {
 	const stats = { totalUsers: 0, activeSessions: 0, pendingActions: 0 };
 	const queries = [
@@ -184,8 +190,8 @@ app.delete("/api/users/:id", (req, res) => {
 	});
 });
 
-app.listen(PORT, () => {
-	console.log(`API listening on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+	console.log(`API listening on http://${HOST}:${PORT} (db: ${DB_PATH})`);
 });
 
 
