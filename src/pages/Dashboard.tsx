@@ -36,7 +36,21 @@ const Dashboard = () => {
         const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
         
         if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-          console.warn('Supabase not configured, using mock data');
+          // For demo mode, use last known stats if available, otherwise compute from local list
+          try {
+            const cached = localStorage.getItem('user_stats');
+            if (cached) {
+              const { total, active } = JSON.parse(cached);
+              if (!mounted) return;
+              setStats([
+                { title: "Total Users", value: String(total ?? 0), icon: Users, color: "text-primary" },
+                { title: "Active Users", value: String(active ?? 0), icon: Shield, color: "text-success" },
+                { title: "Admin Access", value: "Demo Mode", icon: Settings, color: "text-warning" },
+              ]);
+              return;
+            }
+          } catch {}
+          // fallback default
           if (!mounted) return;
           setStats([
             { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
