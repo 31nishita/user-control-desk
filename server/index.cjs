@@ -27,9 +27,22 @@ db.serialize(() => {
 		)`
 	);
 
-	// Best-effort schema evolution: add columns if they don't exist
-	db.run("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'", () => {});
-	db.run("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 0", () => {});
+	// Conditionally add columns if missing to avoid ALTER errors
+	db.all("PRAGMA table_info(users)", [], (err, rows) => {
+		if (err) {
+			console.error("Failed to read users schema:", err.message);
+			return;
+		}
+		const existing = Array.isArray(rows) ? rows.map((r) => r.name) : [];
+		const hasStatus = existing.includes("status");
+		const hasIsActive = existing.includes("is_active");
+		if (!hasStatus) {
+			db.run("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'", () => {});
+		}
+		if (!hasIsActive) {
+			db.run("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 0", () => {});
+		}
+	});
 });
 
 function createToken(payload) {
