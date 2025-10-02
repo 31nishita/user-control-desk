@@ -8,4 +8,4 @@ if (supabaseUrl === 'https://placeholder.supabase.co' || supabaseAnonKey === 'pl
   console.warn('⚠️ Supabase environment variables are not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your .env file');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey); run dev
+export const supabase = createClient(supabaseUrl, supabaseAnonKey); 
