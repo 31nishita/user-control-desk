@@ -251,46 +251,53 @@ const UserManagement = () => {
         return;
       }
 
-      // Ensure server is configured with service role
-      const statusResp = await fetch("/api/supabase/status");
-      const status = await statusResp.json().catch(() => ({ configured: false }));
-      if (!status?.configured) {
-        throw new Error("Server Supabase config missing. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
-      }
+      // First, create the auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: Math.random().toString(36).slice(-8) + "A1!", // Generate temp password
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            name: userData.name,
+          },
+        },
+      });
 
-      // Delegate secure creation to server endpoint (uses service role)
-      const resp = await fetch("/api/supabase/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Failed to create user");
+
+      // Then create/update the profile
+      const { data, error } = await supabase
+        .from("profiles")
+        .upsert({
+          id: authData.user.id,
+          user_id: authData.user.id,
           name: userData.name,
           email: userData.email,
           role: userData.role,
           status: userData.status,
           phone: userData.phone,
-        }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(err?.error || `Failed to create user (${resp.status})`);
-      }
-      const payload = await resp.json();
-      const profile = payload?.profile || {};
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
       const newUser: User = {
-        id: String(profile.id || Date.now()),
-        name: profile.name || userData.name,
-        email: profile.email || userData.email,
-        role: profile.role || userData.role,
-        status: profile.status || userData.status,
-        phone: profile.phone || userData.phone,
-        joinDate: profile.created_at ? new Date(profile.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+        id: String(data.id),
+        name: data.name,
+        email: data.email,
+        role: data.role || "user",
+        status: data.status || "active",
+        phone: data.phone || undefined,
+        joinDate: data.created_at ? new Date(data.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       };
       const updated = [newUser, ...users];
       setUsers(updated);
       notifyUserStats(updated);
       toast({
         title: "User Added",
-        description: "New user has been created in Supabase.",
+        description: "New user has been successfully added. A temporary password has been generated.",
       });
       setIsAddDialogOpen(false);
     } catch (error: any) {

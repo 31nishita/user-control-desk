@@ -13,20 +13,7 @@ let dbInstance;
 
 function getDb() {
 	if (!dbInstance) {
-		dbInstance = new sqlite3.Database(
-			DB_PATH,
-			sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
-			(err) => {
-				if (err) {
-					console.error("Failed to open SQLite database:", DB_PATH, err.message);
-				}
-			}
-		);
-		// Apply basic pragmas to improve reliability
-		dbInstance.serialize(() => {
-			dbInstance.run("PRAGMA foreign_keys = ON");
-			dbInstance.run("PRAGMA journal_mode = WAL");
-		});
+		dbInstance = new sqlite3.Database(DB_PATH);
 	}
 	return dbInstance;
 }
