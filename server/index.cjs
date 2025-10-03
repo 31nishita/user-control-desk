@@ -3,7 +3,7 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
-const { getDb, DB_PATH } = require("./sqlite");
+const { getDb, DB_PATH } = require("./sqlite.cjs");
 const { createClient } = require("@supabase/supabase-js");
 
 dotenv.config();
