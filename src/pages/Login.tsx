@@ -159,6 +159,17 @@ const Login = () => {
                 >
                   {isLoading ? "Signing In..." : "Sign In"}
                 </Button>
+                
+                <div className="text-center">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm text-muted-foreground hover:text-primary"
+                    onClick={() => navigate('/forgot-password')}
+                  >
+                    Forgot your password?
+                  </Button>
+                </div>
               </form>
             </TabsContent>
             
