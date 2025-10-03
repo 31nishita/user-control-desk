@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +14,10 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("users");
   const { toast } = useToast();
   const { signOut, user } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -99,6 +105,79 @@ const Dashboard = () => {
       window.removeEventListener("users:changed", onUsersChanged as EventListener);
     };
   }, []);
+
+  const validatePasswordStrength = (password: string) => {
+    const lengthOk = password.length >= 8;
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSpecial = /[^A-Za-z0-9]/.test(password);
+    return lengthOk && hasUpper && hasLower && hasNumber && hasSpecial;
+  };
+
+  const handleUpdatePassword = async (e: any) => {
+    e.preventDefault();
+    if (!user?.email) {
+      toast({ title: "Not authenticated", description: "Please login again.", variant: "destructive" });
+      return;
+    }
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast({ title: "Missing fields", description: "Fill out all password fields.", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Passwords do not match", description: "New password and confirmation must match.", variant: "destructive" });
+      return;
+    }
+    if (!validatePasswordStrength(newPassword)) {
+      toast({
+        title: "Weak password",
+        description: "Use 8+ chars with upper, lower, number, and special.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsUpdatingPassword(true);
+      // Check if Supabase is properly configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+        // Demo mode - simulate successful update
+        toast({ title: "Password updated", description: "Password changed (demo mode)." });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        return;
+      }
+
+      // Verify current password by re-authenticating
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (verifyError) {
+        toast({ title: "Current password incorrect", description: "Please try again.", variant: "destructive" });
+        return;
+      }
+
+      // Update password
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast({ title: "Update failed", description: error.message, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "Password updated", description: "Your password has been changed." });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
@@ -205,17 +284,56 @@ const Dashboard = () => {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Settings className="w-5 h-5" />
-                <span>System Settings</span>
+                <span>Account Settings</span>
               </CardTitle>
               <CardDescription>
-                Manage system-wide configuration and preferences
+                Update your password and manage your account
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12">
-                <Settings className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">Settings panel will be available after Supabase integration</p>
-              </div>
+              <form onSubmit={handleUpdatePassword} className="space-y-6 max-w-md">
+                <div className="space-y-2">
+                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use 8+ characters, including upper, lower, number, and special.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter new password"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <Button type="submit" disabled={isUpdatingPassword} className="bg-gradient-primary">
+                    {isUpdatingPassword ? "Updating..." : "Update Password"}
+                  </Button>
+                </div>
+              </form>
             </CardContent>
           </Card>
         )}
