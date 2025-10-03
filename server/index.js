@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const { getDb, DB_PATH } = require("./sqlite");
+const { createClient } = require("@supabase/supabase-js");
 
 dotenv.config();
 
@@ -11,6 +12,14 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || "0.0.0.0";
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+let supabaseAdmin = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+	supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+		auth: { autoRefreshToken: false, persistSession: false },
+	});
+}
 
 app.use(cors());
 app.use(express.json());
@@ -87,6 +96,93 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
 // Lightweight health endpoint
 app.get("/health", (_req, res) => {
 	return res.json({ ok: true });
+});
+
+// Supabase configuration status endpoint
+app.get("/api/supabase/status", (_req, res) => {
+	const configured = Boolean(SUPABASE_URL) && Boolean(SUPABASE_SERVICE_ROLE_KEY);
+	return res.json({ ok: true, configured, url: SUPABASE_URL || null, serviceRole: Boolean(SUPABASE_SERVICE_ROLE_KEY) });
+});
+
+// Supabase stats endpoint (uses service role)
+app.get("/api/supabase/stats", async (_req, res) => {
+	try {
+		if (!supabaseAdmin) {
+			return res.status(503).json({ error: "Supabase not configured on server" });
+		}
+		const totalResp = await supabaseAdmin
+			.from("profiles")
+			.select("*", { count: "exact", head: true });
+		const activeResp = await supabaseAdmin
+			.from("profiles")
+			.select("*", { count: "exact", head: true })
+			.eq("status", "active");
+		const pendingResp = await supabaseAdmin
+			.from("profiles")
+			.select("*", { count: "exact", head: true })
+			.eq("status", "pending");
+
+		if (totalResp.error || activeResp.error || pendingResp.error) {
+			const msg = totalResp.error?.message || activeResp.error?.message || pendingResp.error?.message || "Unknown Supabase error";
+			return res.status(500).json({ error: msg });
+		}
+
+		return res.json({
+			totalUsers: totalResp.count || 0,
+			activeSessions: activeResp.count || 0,
+			pendingActions: pendingResp.count || 0,
+		});
+	} catch (e) {
+		return res.status(500).json({ error: "Unexpected server error" });
+	}
+});
+
+// Create Supabase user (admin) and profile
+app.post("/api/supabase/users", async (req, res) => {
+	try {
+		if (!supabaseAdmin) {
+			return res.status(500).json({ error: "Supabase service role not configured on server" });
+		}
+		const { name, email, role, status, phone } = req.body || {};
+		if (!name || !email) {
+			return res.status(400).json({ error: "name and email required" });
+		}
+		const tempPassword = Math.random().toString(36).slice(-8) + "A1!";
+		const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+			email,
+			password: tempPassword,
+			email_confirm: true,
+			user_metadata: { name },
+		});
+		if (createErr) {
+			return res.status(400).json({ error: createErr.message });
+		}
+		const createdUser = created?.user;
+		if (!createdUser) {
+			return res.status(500).json({ error: "Failed to create Supabase user" });
+		}
+		const profile = {
+			id: createdUser.id,
+			user_id: createdUser.id,
+			name,
+			email,
+			role: role || "user",
+			status: status || "active",
+			phone: phone || null,
+			updated_at: new Date().toISOString(),
+		};
+		const { data: upserted, error: upsertErr } = await supabaseAdmin
+			.from("profiles")
+			.upsert(profile)
+			.select()
+			.single();
+		if (upsertErr) {
+			return res.status(500).json({ error: upsertErr.message });
+		}
+		return res.status(201).json({ user: createdUser, profile: upserted || profile });
+	} catch (e) {
+		return res.status(500).json({ error: "Unexpected server error" });
+	}
 });
 
 app.listen(PORT, HOST, () => {
