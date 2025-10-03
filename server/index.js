@@ -185,6 +185,56 @@ app.post("/api/supabase/users", async (req, res) => {
 	}
 });
 
+// Migrate existing SQLite users to Supabase (admin)
+app.post("/api/supabase/migrate", async (_req, res) => {
+	try {
+		if (!supabaseAdmin) {
+			return res.status(500).json({ error: "Supabase service role not configured on server" });
+		}
+		// Read all users from SQLite
+		db.all("SELECT id, email, name FROM users ORDER BY id ASC", [], async (err, rows) => {
+			if (err) return res.status(500).json({ error: "Failed to read SQLite users" });
+			const results = [];
+			for (const row of rows || []) {
+				try {
+					// Create auth user if not exists
+					const tempPassword = Math.random().toString(36).slice(-8) + "A1!";
+					const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+						email: row.email,
+						password: tempPassword,
+						email_confirm: true,
+						user_metadata: { name: row.name },
+					});
+					if (createErr && !String(createErr.message || "").includes("already registered")) {
+						throw createErr;
+					}
+					const userId = created?.user?.id;
+					// Upsert profile
+					const { error: upsertErr } = await supabaseAdmin
+						.from("profiles")
+						.upsert({
+							id: userId,
+							user_id: userId,
+							email: row.email,
+							name: row.name,
+							role: "user",
+							status: "active",
+						})
+						.select()
+						.single();
+					if (upsertErr) throw upsertErr;
+					results.push({ email: row.email, ok: true });
+				} catch (e) {
+					results.push({ email: row.email, ok: false, error: String(e?.message || e) });
+				}
+			}
+			return res.json({ migrated: results.filter(r => r.ok).length, total: rows.length, results });
+		});
+	} catch (e) {
+		return res.status(500).json({ error: "Unexpected server error" });
+	}
+});
+
 app.listen(PORT, HOST, () => {
 	console.log(`API listening on http://${HOST}:${PORT} (db: ${DB_PATH})`);
 });
