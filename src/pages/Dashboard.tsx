@@ -12,6 +12,8 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("users");
   const { toast } = useToast();
   const { signOut, user } = useAuth();
+  const [supabaseConfigured, setSupabaseConfigured] = useState(false);
+  const [migrating, setMigrating] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -34,6 +36,7 @@ const Dashboard = () => {
         // Ask server if Supabase is configured
         const statusResp = await fetch("/api/supabase/status");
         const status = await statusResp.json().catch(() => ({ configured: false }));
+        setSupabaseConfigured(Boolean(status?.configured));
         if (!status?.configured) {
           try {
             const cached = localStorage.getItem('user_stats');
@@ -214,9 +217,44 @@ const Dashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12">
-                <Settings className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">Settings panel will be available after Supabase integration</p>
+              <div className="space-y-6">
+                <div className="text-center py-6">
+                  <Settings className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">Settings panel will be available after Supabase integration</p>
+                </div>
+
+                <div className="border border-border/50 rounded-lg p-4 bg-background/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-foreground">Migrate from SQLite to Supabase</p>
+                      <p className="text-sm text-muted-foreground">Moves existing local users into Supabase (creates auth users + profiles)</p>
+                    </div>
+                    <Button
+                      disabled={!supabaseConfigured || migrating}
+                      onClick={async () => {
+                        try {
+                          setMigrating(true);
+                          const resp = await fetch('/api/supabase/migrate', { method: 'POST' });
+                          const json = await resp.json().catch(() => ({}));
+                          if (!resp.ok) {
+                            throw new Error(json?.error || `Migration failed (${resp.status})`);
+                          }
+                          toast({
+                            title: 'Migration Complete',
+                            description: `Migrated ${json?.migrated ?? 0} of ${json?.total ?? 0} users`,
+                          });
+                        } catch (e: any) {
+                          toast({ title: 'Migration Error', description: String(e?.message || e), variant: 'destructive' });
+                        } finally {
+                          setMigrating(false);
+                        }
+                      }}
+                      className="bg-gradient-primary hover:shadow-glow transition-smooth"
+                    >
+                      {migrating ? 'Migrating…' : supabaseConfigured ? 'Migrate Now' : 'Configure Server First'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
