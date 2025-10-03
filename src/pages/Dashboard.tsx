@@ -31,12 +31,10 @@ const Dashboard = () => {
     let mounted = true;
     const load = async () => {
       try {
-        // Check if Supabase is properly configured
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        
-        if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-          // For demo mode, use last known stats if available, otherwise compute from local list
+        // Ask server if Supabase is configured
+        const statusResp = await fetch("/api/supabase/status");
+        const status = await statusResp.json().catch(() => ({ configured: false }));
+        if (!status?.configured) {
           try {
             const cached = localStorage.getItem('user_stats');
             if (cached) {
@@ -50,7 +48,6 @@ const Dashboard = () => {
               return;
             }
           } catch {}
-          // fallback default
           if (!mounted) return;
           setStats([
             { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
@@ -60,39 +57,44 @@ const Dashboard = () => {
           return;
         }
 
-        const { count: totalUsers } = await supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true });
-        
-        const { count: activeSessions } = await supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "active");
-
+        // Get stats from server (service role)
+        const statsResp = await fetch("/api/supabase/stats");
+        const statsJson = await statsResp.json().catch(() => null);
         if (!mounted) return;
+        if (!statsResp.ok || !statsJson) {
+          setStats([
+            { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
+            { title: "Active Users", value: "0", icon: Shield, color: "text-success" },
+            { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
+          ]);
+          return;
+        }
         setStats([
-          { title: "Total Users", value: String(totalUsers ?? 0), icon: Users, color: "text-primary" },
-          { title: "Active Users", value: String(activeSessions ?? 0), icon: Shield, color: "text-success" },
+          { title: "Total Users", value: String(statsJson.totalUsers ?? 0), icon: Users, color: "text-primary" },
+          { title: "Active Users", value: String(statsJson.activeSessions ?? 0), icon: Shield, color: "text-success" },
           { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
         ]);
-      } catch (error) {
+      } catch {
         if (!mounted) return;
-        setStats((s) => s.map((it, idx) => ({ ...it, value: idx === 2 ? "Active" : "0" })));
+        setStats([
+          { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
+          { title: "Active Users", value: "0", icon: Shield, color: "text-success" },
+          { title: "Admin Access", value: "Demo Mode", icon: Settings, color: "text-warning" },
+        ]);
       }
     };
     load();
-    // Listen to user changes from UserManagement to update stats instantly
     const onUsersChanged = (e: any) => {
       if (!mounted) return;
       const detail = e?.detail || {};
       setStats([
         { title: "Total Users", value: String(detail.total ?? 0), icon: Users, color: "text-primary" },
         { title: "Active Users", value: String(detail.active ?? 0), icon: Shield, color: "text-success" },
-        { title: "Admin Access", value: import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY && import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co' && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY !== 'placeholder-key' ? "Active" : "Demo Mode", icon: Settings, color: "text-warning" },
+        { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
       ]);
     };
     window.addEventListener("users:changed", onUsersChanged as EventListener);
-    const id = setInterval(load, 30000); // Check every 30 seconds
+    const id = setInterval(load, 30000);
     return () => {
       mounted = false;
       clearInterval(id);

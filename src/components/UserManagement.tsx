@@ -251,6 +251,13 @@ const UserManagement = () => {
         return;
       }
 
+      // Ensure server is configured with service role
+      const statusResp = await fetch("/api/supabase/status");
+      const status = await statusResp.json().catch(() => ({ configured: false }));
+      if (!status?.configured) {
+        throw new Error("Server Supabase config missing. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
+      }
+
       // Delegate secure creation to server endpoint (uses service role)
       const resp = await fetch("/api/supabase/users", {
         method: "POST",

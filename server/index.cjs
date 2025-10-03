@@ -117,6 +117,45 @@ app.get("/health", (_req, res) => {
 	return res.json({ ok: true });
 });
 
+// Supabase configuration status endpoint
+app.get("/api/supabase/status", (_req, res) => {
+	const configured = Boolean(SUPABASE_URL) && Boolean(SUPABASE_SERVICE_ROLE_KEY);
+	return res.json({ ok: true, configured, url: SUPABASE_URL || null, serviceRole: Boolean(SUPABASE_SERVICE_ROLE_KEY) });
+});
+
+// Supabase stats endpoint (uses service role)
+app.get("/api/supabase/stats", async (_req, res) => {
+	try {
+		if (!supabaseAdmin) {
+			return res.status(503).json({ error: "Supabase not configured on server" });
+		}
+		const totalResp = await supabaseAdmin
+			.from("profiles")
+			.select("*", { count: "exact", head: true });
+		const activeResp = await supabaseAdmin
+			.from("profiles")
+			.select("*", { count: "exact", head: true })
+			.eq("status", "active");
+		const pendingResp = await supabaseAdmin
+			.from("profiles")
+			.select("*", { count: "exact", head: true })
+			.eq("status", "pending");
+
+		if (totalResp.error || activeResp.error || pendingResp.error) {
+			const msg = totalResp.error?.message || activeResp.error?.message || pendingResp.error?.message || "Unknown Supabase error";
+			return res.status(500).json({ error: msg });
+		}
+
+		return res.json({
+			totalUsers: totalResp.count || 0,
+			activeSessions: activeResp.count || 0,
+			pendingActions: pendingResp.count || 0,
+		});
+	} catch (e) {
+		return res.status(500).json({ error: "Unexpected server error" });
+	}
+});
+
 // Create Supabase user (admin) and profile
 app.post("/api/supabase/users", async (req, res) => {
 	try {
