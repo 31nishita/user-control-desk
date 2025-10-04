@@ -4,16 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Mail, Shield } from "lucide-react";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [resetToken, setResetToken] = useState("");
-  const [resetUrl, setResetUrl] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -22,33 +20,21 @@ const ForgotPassword = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
       });
 
-      const result = await response.json();
-
-      if (response.ok) {
-        setIsSubmitted(true);
-        
-        // In development, we show the reset token/URL
-        // In production, this would be sent via email
-        if (result.resetToken) {
-          setResetToken(result.resetToken);
-          setResetUrl(result.resetUrl);
-        }
-
-        toast({
-          title: "Reset Link Sent",
-          description: "If the email exists, a password reset link has been sent.",
-        });
-      } else {
+      if (error) {
         toast({
           title: "Error",
-          description: result.error || "Something went wrong",
+          description: error.message,
           variant: "destructive",
+        });
+      } else {
+        setIsSubmitted(true);
+        toast({
+          title: "Reset Link Sent",
+          description: "Check your email for the password reset link.",
         });
       }
     } catch (error) {
@@ -81,41 +67,16 @@ const ForgotPassword = () => {
           </CardHeader>
           
           <CardContent className="space-y-6">
-            {/* Development Mode - Show reset token */}
-            {resetToken && (
-              <Alert className="border-orange-200 bg-orange-50 text-orange-800">
-                <AlertDescription>
-                  <strong>Development Mode:</strong> In production, this would be sent via email.
-                  <div className="mt-2 space-y-2">
-                    <div className="text-sm">
-                      <strong>Reset Token:</strong> <code className="bg-orange-100 px-1 rounded text-xs">{resetToken}</code>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(`/reset-password?token=${resetToken}`)}
-                      className="w-full"
-                    >
-                      Use Reset Link
-                    </Button>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
-
             <div className="text-sm text-muted-foreground space-y-2">
-              <p>Didn't receive the email? Check your spam folder.</p>
-              <p>The reset link will expire in 15 minutes for security.</p>
+              <p>Check your email inbox for the password reset link.</p>
+              <p>Didn't receive it? Check your spam folder.</p>
+              <p>The reset link will expire in 1 hour for security.</p>
             </div>
             
             <div className="flex flex-col gap-3">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsSubmitted(false);
-                  setResetToken("");
-                  setResetUrl("");
-                }}
+                onClick={() => setIsSubmitted(false)}
                 className="w-full"
               >
                 Try Different Email
