@@ -12,6 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || "0.0.0.0";
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+const FRONTEND_URL = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 let supabaseAdmin = null;
@@ -137,13 +138,13 @@ app.post("/api/auth/forgot-password", (req, res) => {
 			
 			// In a real app, you would send an email here
 			// For demo purposes, we'll return the token (NEVER do this in production!)
-			return res.json({ 
-				message: "Password reset requested successfully",
-				// DEMO ONLY - In production, send this via email instead
-				resetToken: resetToken,
-				resetUrl: `http://localhost:8080/reset-password?token=${resetToken}`,
-				expires: expiresAt
-			});
+            return res.json({ 
+                message: "Password reset requested successfully",
+                // DEMO ONLY - In production, send this via email instead
+                resetToken: resetToken,
+                resetUrl: `${FRONTEND_URL}/reset-password?token=${resetToken}`,
+                expires: expiresAt
+            });
 		});
 	});
 });
