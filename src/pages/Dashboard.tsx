@@ -37,35 +37,6 @@ const Dashboard = () => {
     let mounted = true;
     const load = async () => {
       try {
-        // Check if Supabase is properly configured
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        
-        if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-          // For demo mode, use last known stats if available, otherwise compute from local list
-          try {
-            const cached = localStorage.getItem('user_stats');
-            if (cached) {
-              const { total, active } = JSON.parse(cached);
-              if (!mounted) return;
-              setStats([
-                { title: "Total Users", value: String(total ?? 0), icon: Users, color: "text-primary" },
-                { title: "Active Users", value: String(active ?? 0), icon: Shield, color: "text-success" },
-                { title: "Admin Access", value: "Demo Mode", icon: Settings, color: "text-warning" },
-              ]);
-              return;
-            }
-          } catch {}
-          // fallback default
-          if (!mounted) return;
-          setStats([
-            { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
-            { title: "Active Users", value: "0", icon: Shield, color: "text-success" },
-            { title: "Admin Access", value: "Demo Mode", icon: Settings, color: "text-warning" },
-          ]);
-          return;
-        }
-
         const { count: totalUsers } = await supabase
           .from("profiles")
           .select("*", { count: "exact", head: true });
@@ -94,7 +65,7 @@ const Dashboard = () => {
       setStats([
         { title: "Total Users", value: String(detail.total ?? 0), icon: Users, color: "text-primary" },
         { title: "Active Users", value: String(detail.active ?? 0), icon: Shield, color: "text-success" },
-        { title: "Admin Access", value: import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY && import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co' && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY !== 'placeholder-key' ? "Active" : "Demo Mode", icon: Settings, color: "text-warning" },
+        { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
       ]);
     };
     window.addEventListener("users:changed", onUsersChanged as EventListener);
@@ -140,18 +111,6 @@ const Dashboard = () => {
 
     try {
       setIsUpdatingPassword(true);
-      // Check if Supabase is properly configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-        // Demo mode - simulate successful update
-        toast({ title: "Password updated", description: "Password changed (demo mode)." });
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-        return;
-      }
 
       // Verify current password by re-authenticating
       const { error: verifyError } = await supabase.auth.signInWithPassword({
