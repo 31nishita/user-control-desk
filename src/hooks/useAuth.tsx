@@ -63,27 +63,37 @@ export const useAuth = () => {
     return { data, error };
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
+
+  const updatePassword = async (newPassword: string) => {
     // Check if Supabase is properly configured
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     
     if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-      // Demo mode - simulate successful signup
-      return { data: { user: null }, error: null };
+      // Demo mode - simulate successful password update
+      return { error: null };
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-        data: {
-          name,
-        },
-      },
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
     });
-    return { data, error };
+    return { error };
+  };
+
+  const resetPassword = async (email: string) => {
+    // Check if Supabase is properly configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    
+    if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+      // Demo mode - simulate successful password reset email
+      return { error: null };
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    return { error };
   };
 
   const signOut = async () => {
@@ -107,7 +117,8 @@ export const useAuth = () => {
     user,
     loading,
     signIn,
-    signUp,
+    updatePassword,
+    resetPassword,
     signOut,
   };
 };

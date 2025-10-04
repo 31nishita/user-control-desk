@@ -6,6 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, Users, Settings, Shield } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
+import PasswordUpdate from "@/components/PasswordUpdate";
+import ForgotPasswordSettings from "@/components/ForgotPasswordSettings";
 import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
@@ -201,23 +203,29 @@ const Dashboard = () => {
         {activeTab === "users" && <UserManagement />}
         
         {activeTab === "settings" && (
-          <Card className="bg-gradient-card border-border/50 shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Settings className="w-5 h-5" />
-                <span>System Settings</span>
-              </CardTitle>
-              <CardDescription>
-                Manage system-wide configuration and preferences
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12">
-                <Settings className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">Settings panel will be available after Supabase integration</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <PasswordUpdate />
+            
+            <ForgotPasswordSettings />
+            
+            <Card className="bg-gradient-card border-border/50 shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Settings className="w-5 h-5" />
+                  <span>System Settings</span>
+                </CardTitle>
+                <CardDescription>
+                  Additional system-wide configuration options
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <Settings className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">More settings options coming soon</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </div>
