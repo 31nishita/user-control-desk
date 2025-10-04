@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Eye, EyeOff, Shield, CheckCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const ResetPassword = () => {
-  const [searchParams] = useSearchParams();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -19,14 +19,17 @@ const ResetPassword = () => {
   const [tokenError, setTokenError] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  const token = searchParams.get('token');
 
   useEffect(() => {
-    if (!token) {
-      setTokenError("No reset token provided");
-    }
-  }, [token]);
+    // Supabase sets a recovery session after following the email link
+    const verifySession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        setTokenError("Invalid or expired reset link");
+      }
+    };
+    verifySession();
+  }, []);
 
   const validatePassword = () => {
     if (newPassword.length < 6) {
@@ -54,30 +57,16 @@ const ResetPassword = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          token,
-          newPassword 
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        setIsSuccess(true);
-        toast({
-          title: "Password Reset Successful",
-          description: "Your password has been updated successfully.",
-        });
-      } else {
-        toast({
-          title: "Reset Failed",
-          description: result.error || "Invalid or expired reset token",
-          variant: "destructive",
-        });
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast({ title: "Reset Failed", description: error.message, variant: "destructive" });
+        return;
       }
+      setIsSuccess(true);
+      toast({
+        title: "Password Reset Successful",
+        description: "Your password has been updated successfully.",
+      });
     } catch (error) {
       toast({
         title: "Error",
