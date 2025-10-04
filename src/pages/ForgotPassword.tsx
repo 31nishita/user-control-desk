@@ -7,13 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Mail, Shield } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [resetToken, setResetToken] = useState("");
-  const [resetUrl, setResetUrl] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -22,33 +21,17 @@ const ForgotPassword = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
       });
 
-      const result = await response.json();
-
-      if (response.ok) {
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
         setIsSubmitted(true);
-        
-        // In development, we show the reset token/URL
-        // In production, this would be sent via email
-        if (result.resetToken) {
-          setResetToken(result.resetToken);
-          setResetUrl(result.resetUrl);
-        }
-
         toast({
           title: "Reset Link Sent",
-          description: "If the email exists, a password reset link has been sent.",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Something went wrong",
-          variant: "destructive",
+          description: "If the email exists, a reset link has been sent.",
         });
       }
     } catch (error) {
@@ -81,27 +64,11 @@ const ForgotPassword = () => {
           </CardHeader>
           
           <CardContent className="space-y-6">
-            {/* Development Mode - Show reset token */}
-            {resetToken && (
-              <Alert className="border-orange-200 bg-orange-50 text-orange-800">
-                <AlertDescription>
-                  <strong>Development Mode:</strong> In production, this would be sent via email.
-                  <div className="mt-2 space-y-2">
-                    <div className="text-sm">
-                      <strong>Reset Token:</strong> <code className="bg-orange-100 px-1 rounded text-xs">{resetToken}</code>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(`/reset-password?token=${resetToken}`)}
-                      className="w-full"
-                    >
-                      Use Reset Link
-                    </Button>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
+            <Alert className="border-orange-200 bg-orange-50 text-orange-800">
+              <AlertDescription>
+                Check your inbox for the password reset email. Follow the link to set a new password.
+              </AlertDescription>
+            </Alert>
 
             <div className="text-sm text-muted-foreground space-y-2">
               <p>Didn't receive the email? Check your spam folder.</p>
@@ -113,8 +80,6 @@ const ForgotPassword = () => {
                 variant="outline"
                 onClick={() => {
                   setIsSubmitted(false);
-                  setResetToken("");
-                  setResetUrl("");
                 }}
                 className="w-full"
               >
