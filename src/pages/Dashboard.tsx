@@ -1,528 +1,224 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { LogOut, Users, Settings, Shield } from "lucide-react";
+import UserManagement from "@/components/UserManagement";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Video,
-  Upload,
-  Heart,
-  MessageCircle,
-  Eye,
-  Trash2,
-  Edit,
-  BarChart3,
-  Home,
-  LogOut,
-} from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-
-interface Vlog {
-  id: string;
-  title: string;
-  description: string;
-  video_url: string;
-  thumbnail_url: string;
-  views: number;
-  created_at: string;
-  category_id: string | null;
-}
-
-interface VlogStats {
-  id: string;
-  title: string;
-  views: number;
-  likes: number;
-  comments: number;
-}
 
 const Dashboard = () => {
-  const { user, signOut } = useAuth();
+  const [activeTab, setActiveTab] = useState("users");
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { signOut, user } = useAuth();
 
-  const [vlogs, setVlogs] = useState<Vlog[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [vlogStats, setVlogStats] = useState<VlogStats[]>([]);
-  const [totalViews, setTotalViews] = useState(0);
-  const [totalLikes, setTotalLikes] = useState(0);
-  const [totalComments, setTotalComments] = useState(0);
+  const handleLogout = async () => {
+    await signOut();
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+  };
 
-  // Upload form state
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [videoUrl, setVideoUrl] = useState("");
-  const [thumbnailUrl, setThumbnailUrl] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Edit state
-  const [editingVlog, setEditingVlog] = useState<Vlog | null>(null);
+  const [stats, setStats] = useState([
+    { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
+    { title: "Active Users", value: "0", icon: Shield, color: "text-success" },
+    { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
+  ]);
 
   useEffect(() => {
-    if (user) {
-      fetchVlogs();
-      fetchCategories();
-      fetchAnalytics();
-    }
-  }, [user]);
+    let mounted = true;
+    const load = async () => {
+      try {
+        // Check if Supabase is properly configured
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        
+        if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+          // For demo mode, use last known stats if available, otherwise compute from local list
+          try {
+            const cached = localStorage.getItem('user_stats');
+            if (cached) {
+              const { total, active } = JSON.parse(cached);
+              if (!mounted) return;
+              setStats([
+                { title: "Total Users", value: String(total ?? 0), icon: Users, color: "text-primary" },
+                { title: "Active Users", value: String(active ?? 0), icon: Shield, color: "text-success" },
+                { title: "Admin Access", value: "Demo Mode", icon: Settings, color: "text-warning" },
+              ]);
+              return;
+            }
+          } catch {}
+          // fallback default
+          if (!mounted) return;
+          setStats([
+            { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
+            { title: "Active Users", value: "0", icon: Shield, color: "text-success" },
+            { title: "Admin Access", value: "Demo Mode", icon: Settings, color: "text-warning" },
+          ]);
+          return;
+        }
 
-  const fetchCategories = async () => {
-    const { data } = await supabase.from("vlog_categories").select("*");
-    if (data) setCategories(data);
-  };
-
-  const fetchVlogs = async () => {
-    const { data } = await supabase
-      .from("vlogs")
-      .select("*")
-      .eq("user_id", user?.id)
-      .order("created_at", { ascending: false });
-
-    if (data) setVlogs(data);
-  };
-
-  const fetchAnalytics = async () => {
-    const { data: vlogs } = await supabase
-      .from("vlogs")
-      .select("id, title, views")
-      .eq("user_id", user?.id);
-
-    if (!vlogs) return;
-
-    const stats = await Promise.all(
-      vlogs.map(async (vlog) => {
-        const { count: likesCount } = await supabase
-          .from("vlog_likes")
+        const { count: totalUsers } = await supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true });
+        
+        const { count: activeSessions } = await supabase
+          .from("profiles")
           .select("*", { count: "exact", head: true })
-          .eq("vlog_id", vlog.id);
+          .eq("status", "active");
 
-        const { count: commentsCount } = await supabase
-          .from("vlog_comments")
-          .select("*", { count: "exact", head: true })
-          .eq("vlog_id", vlog.id);
-
-        return {
-          id: vlog.id,
-          title: vlog.title,
-          views: vlog.views,
-          likes: likesCount || 0,
-          comments: commentsCount || 0,
-        };
-      })
-    );
-
-    setVlogStats(stats);
-    setTotalViews(stats.reduce((sum, s) => sum + s.views, 0));
-    setTotalLikes(stats.reduce((sum, s) => sum + s.likes, 0));
-    setTotalComments(stats.reduce((sum, s) => sum + s.comments, 0));
-  };
-
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUploading(true);
-
-    try {
-      const vlogData = {
-        user_id: user?.id,
-        title,
-        description,
-        video_url: videoUrl,
-        thumbnail_url: thumbnailUrl,
-        category_id: selectedCategory || null,
-      };
-
-      if (editingVlog) {
-        await supabase.from("vlogs").update(vlogData).eq("id", editingVlog.id);
-        toast({ title: "Vlog updated successfully!" });
-        setEditingVlog(null);
-      } else {
-        await supabase.from("vlogs").insert(vlogData);
-        toast({ title: "Vlog uploaded successfully!" });
+        if (!mounted) return;
+        setStats([
+          { title: "Total Users", value: String(totalUsers ?? 0), icon: Users, color: "text-primary" },
+          { title: "Active Users", value: String(activeSessions ?? 0), icon: Shield, color: "text-success" },
+          { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
+        ]);
+      } catch (error) {
+        if (!mounted) return;
+        setStats((s) => s.map((it, idx) => ({ ...it, value: idx === 2 ? "Active" : "0" })));
       }
-
-      // Reset form
-      setTitle("");
-      setDescription("");
-      setVideoUrl("");
-      setThumbnailUrl("");
-      setSelectedCategory("");
-
-      fetchVlogs();
-      fetchAnalytics();
-    } catch (error) {
-      toast({
-        title: "Upload failed",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleEdit = (vlog: Vlog) => {
-    setEditingVlog(vlog);
-    setTitle(vlog.title);
-    setDescription(vlog.description || "");
-    setVideoUrl(vlog.video_url);
-    setThumbnailUrl(vlog.thumbnail_url || "");
-    setSelectedCategory(vlog.category_id || "");
-  };
-
-  const handleDelete = async (id: string) => {
-    await supabase.from("vlogs").delete().eq("id", id);
-    toast({ title: "Vlog deleted successfully!" });
-    fetchVlogs();
-    fetchAnalytics();
-  };
+    };
+    load();
+    // Listen to user changes from UserManagement to update stats instantly
+    const onUsersChanged = (e: any) => {
+      if (!mounted) return;
+      const detail = e?.detail || {};
+      setStats([
+        { title: "Total Users", value: String(detail.total ?? 0), icon: Users, color: "text-primary" },
+        { title: "Active Users", value: String(detail.active ?? 0), icon: Shield, color: "text-success" },
+        { title: "Admin Access", value: import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY && import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co' && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY !== 'placeholder-key' ? "Active" : "Demo Mode", icon: Settings, color: "text-warning" },
+      ]);
+    };
+    window.addEventListener("users:changed", onUsersChanged as EventListener);
+    const id = setInterval(load, 30000); // Check every 30 seconds
+    return () => {
+      mounted = false;
+      clearInterval(id);
+      window.removeEventListener("users:changed", onUsersChanged as EventListener);
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-subtle">
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <Video className="w-6 h-6 text-primary-foreground" />
+      <header className="bg-gradient-card border-b border-border/50 shadow-card">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center shadow-glow">
+                <Shield className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-foreground">Manager Dashboard</h1>
+                <p className="text-sm text-muted-foreground">User Management Portal</p>
+              </div>
             </div>
-            <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Creator Dashboard
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" onClick={() => navigate("/")} className="gap-2">
-              <Home className="w-4 h-4" />
-              Home
-            </Button>
-            <Button variant="outline" size="sm" onClick={signOut} className="gap-2">
-              <LogOut className="w-4 h-4" />
-              Logout
-            </Button>
+            
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <Avatar className="w-8 h-8">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                    {user?.email?.substring(0, 2).toUpperCase() || "MG"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-medium text-foreground truncate max-w-[150px]">
+                    {user?.email}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Manager Access</p>
+                </div>
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                className="transition-smooth hover:shadow-glow"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <Tabs defaultValue="upload" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="upload">
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Vlog
-            </TabsTrigger>
-            <TabsTrigger value="manage">
-              <Video className="w-4 h-4 mr-2" />
-              My Vlogs
-            </TabsTrigger>
-            <TabsTrigger value="analytics">
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Analytics
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Upload Tab */}
-          <TabsContent value="upload">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {editingVlog ? "Edit Vlog" : "Upload New Vlog"}
-                </CardTitle>
-                <CardDescription>
-                  {editingVlog
-                    ? "Update your vlog details"
-                    : "Share your story with the world"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleUpload} className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Title *</Label>
-                    <Input
-                      id="title"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Enter vlog title"
-                      required
-                    />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {stats.map((stat, index) => (
+            <Card key={index} className="bg-gradient-card border-border/50 shadow-card hover:shadow-elegant transition-smooth">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                    <p className="text-3xl font-bold text-foreground mt-1">{stat.value}</p>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Tell viewers about your vlog"
-                      rows={4}
-                    />
+                  <div className={`p-3 rounded-lg bg-gradient-primary/10`}>
+                    <stat.icon className={`w-6 h-6 ${stat.color}`} />
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="video">Video URL *</Label>
-                    <Input
-                      id="video"
-                      value={videoUrl}
-                      onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="https://example.com/video.mp4"
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Paste a direct link to your video file
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="thumbnail">Thumbnail URL</Label>
-                    <Input
-                      id="thumbnail"
-                      value={thumbnailUrl}
-                      onChange={(e) => setThumbnailUrl(e.target.value)}
-                      placeholder="https://example.com/thumbnail.jpg"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      type="submit"
-                      disabled={isUploading}
-                      className="bg-gradient-primary"
-                    >
-                      {isUploading
-                        ? "Uploading..."
-                        : editingVlog
-                        ? "Update Vlog"
-                        : "Upload Vlog"}
-                    </Button>
-                    {editingVlog && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingVlog(null);
-                          setTitle("");
-                          setDescription("");
-                          setVideoUrl("");
-                          setThumbnailUrl("");
-                          setSelectedCategory("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                </form>
+                </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          ))}
+        </div>
 
-          {/* Manage Vlogs Tab */}
-          <TabsContent value="manage">
-            <Card>
-              <CardHeader>
-                <CardTitle>My Vlogs ({vlogs.length})</CardTitle>
-                <CardDescription>Manage your uploaded content</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {vlogs.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Video className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">No vlogs yet</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Start sharing your stories by uploading your first vlog!
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {vlogs.map((vlog) => (
-                      <div
-                        key={vlog.id}
-                        className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/30 transition"
-                      >
-                        <img
-                          src={vlog.thumbnail_url || "/placeholder.svg"}
-                          alt={vlog.title}
-                          className="w-32 h-20 object-cover rounded"
-                        />
-                        <div className="flex-1">
-                          <h4 className="font-semibold">{vlog.title}</h4>
-                          <p className="text-sm text-muted-foreground line-clamp-1">
-                            {vlog.description}
-                          </p>
-                          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Eye className="w-3 h-3" />
-                              {vlog.views}
-                            </span>
-                            <span>
-                              {formatDistanceToNow(new Date(vlog.created_at), {
-                                addSuffix: true,
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(vlog)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm">
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Vlog</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete "{vlog.title}"? This
-                                  action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(vlog.id)}
-                                  className="bg-destructive"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+        {/* Navigation Tabs */}
+        <div className="mb-6">
+          <div className="flex space-x-1 bg-muted/30 p-1 rounded-lg w-fit">
+            <Button
+              variant={activeTab === "users" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("users")}
+              className={`transition-smooth ${
+                activeTab === "users" 
+                  ? "bg-gradient-primary shadow-glow" 
+                  : "hover:bg-muted/50"
+              }`}
+            >
+              <Users className="w-4 h-4 mr-2" />
+              User Management
+            </Button>
+            <Button
+              variant={activeTab === "settings" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("settings")}
+              className={`transition-smooth ${
+                activeTab === "settings" 
+                  ? "bg-gradient-primary shadow-glow" 
+                  : "hover:bg-muted/50"
+              }`}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Settings
+            </Button>
+          </div>
+        </div>
 
-          {/* Analytics Tab */}
-          <TabsContent value="analytics">
-            <div className="space-y-6">
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Views</p>
-                        <p className="text-3xl font-bold">{totalViews}</p>
-                      </div>
-                      <Eye className="w-8 h-8 text-primary" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Likes</p>
-                        <p className="text-3xl font-bold">{totalLikes}</p>
-                      </div>
-                      <Heart className="w-8 h-8 text-red-500" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Comments</p>
-                        <p className="text-3xl font-bold">{totalComments}</p>
-                      </div>
-                      <MessageCircle className="w-8 h-8 text-primary" />
-                    </div>
-                  </CardContent>
-                </Card>
+        {/* Content */}
+        {activeTab === "users" && <UserManagement />}
+        
+        {activeTab === "settings" && (
+          <Card className="bg-gradient-card border-border/50 shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Settings className="w-5 h-5" />
+                <span>System Settings</span>
+              </CardTitle>
+              <CardDescription>
+                Manage system-wide configuration and preferences
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12">
+                <Settings className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Settings panel will be available after Supabase integration</p>
               </div>
-
-              {/* Detailed Stats Table */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vlog Performance</CardTitle>
-                  <CardDescription>
-                    Detailed analytics for each of your vlogs
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {vlogStats.length === 0 ? (
-                    <div className="text-center py-12">
-                      <BarChart3 className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                      <p className="text-muted-foreground">
-                        Upload vlogs to see analytics
-                      </p>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Title</TableHead>
-                          <TableHead className="text-right">Views</TableHead>
-                          <TableHead className="text-right">Likes</TableHead>
-                          <TableHead className="text-right">Comments</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {vlogStats.map((stat) => (
-                          <TableRow key={stat.id}>
-                            <TableCell className="font-medium">{stat.title}</TableCell>
-                            <TableCell className="text-right">{stat.views}</TableCell>
-                            <TableCell className="text-right">{stat.likes}</TableCell>
-                            <TableCell className="text-right">{stat.comments}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -49,11 +49,8 @@ export const useAuth = () => {
       const mockUser = {
         id: 'demo-user-id',
         email: email,
-        app_metadata: {},
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
         user_metadata: { name: 'Demo User' }
-      } as unknown as User;
+      } as User;
       setUser(mockUser);
       try { localStorage.setItem('auth_user', JSON.stringify(mockUser)); } catch {}
       return { data: { user: mockUser }, error: null };
@@ -66,37 +63,27 @@ export const useAuth = () => {
     return { data, error };
   };
 
-
-  const updatePassword = async (newPassword: string) => {
+  const signUp = async (email: string, password: string, name: string) => {
     // Check if Supabase is properly configured
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     
     if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-      // Demo mode - simulate successful password update
-      return { error: null };
+      // Demo mode - simulate successful signup
+      return { data: { user: null }, error: null };
     }
 
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+        data: {
+          name,
+        },
+      },
     });
-    return { error };
-  };
-
-  const resetPassword = async (email: string) => {
-    // Check if Supabase is properly configured
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    
-    if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-      // Demo mode - simulate successful password reset email
-      return { error: null };
-    }
-
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
-    });
-    return { error };
+    return { data, error };
   };
 
   const signOut = async () => {
@@ -120,8 +107,7 @@ export const useAuth = () => {
     user,
     loading,
     signIn,
-    updatePassword,
-    resetPassword,
+    signUp,
     signOut,
   };
 };

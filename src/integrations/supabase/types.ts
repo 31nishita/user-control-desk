@@ -50,27 +50,6 @@ export type Database = {
         }
         Relationships: []
       }
-      user_follows: {
-        Row: {
-          created_at: string | null
-          follower_id: string
-          following_id: string
-          id: string
-        }
-        Insert: {
-          created_at?: string | null
-          follower_id: string
-          following_id: string
-          id?: string
-        }
-        Update: {
-          created_at?: string | null
-          follower_id?: string
-          following_id?: string
-          id?: string
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           id: string
@@ -89,138 +68,6 @@ export type Database = {
         }
         Relationships: []
       }
-      vlog_categories: {
-        Row: {
-          created_at: string | null
-          id: string
-          name: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          name: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      vlog_comments: {
-        Row: {
-          content: string
-          created_at: string | null
-          id: string
-          is_approved: boolean | null
-          updated_at: string | null
-          user_id: string
-          vlog_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string | null
-          id?: string
-          is_approved?: boolean | null
-          updated_at?: string | null
-          user_id: string
-          vlog_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string | null
-          id?: string
-          is_approved?: boolean | null
-          updated_at?: string | null
-          user_id?: string
-          vlog_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vlog_comments_vlog_id_fkey"
-            columns: ["vlog_id"]
-            isOneToOne: false
-            referencedRelation: "vlogs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vlog_likes: {
-        Row: {
-          created_at: string | null
-          id: string
-          user_id: string
-          vlog_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          user_id: string
-          vlog_id: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          user_id?: string
-          vlog_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vlog_likes_vlog_id_fkey"
-            columns: ["vlog_id"]
-            isOneToOne: false
-            referencedRelation: "vlogs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vlogs: {
-        Row: {
-          category_id: string | null
-          created_at: string | null
-          description: string | null
-          id: string
-          thumbnail_url: string | null
-          title: string
-          updated_at: string | null
-          user_id: string
-          video_url: string
-          views: number | null
-        }
-        Insert: {
-          category_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          thumbnail_url?: string | null
-          title: string
-          updated_at?: string | null
-          user_id: string
-          video_url: string
-          views?: number | null
-        }
-        Update: {
-          category_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          thumbnail_url?: string | null
-          title?: string
-          updated_at?: string | null
-          user_id?: string
-          video_url?: string
-          views?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vlogs_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "vlog_categories"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
@@ -232,10 +79,6 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
-      }
-      increment_vlog_views: {
-        Args: { vlog_id: string }
-        Returns: undefined
       }
     }
     Enums: {
