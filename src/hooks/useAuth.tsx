@@ -49,8 +49,11 @@ export const useAuth = () => {
       const mockUser = {
         id: 'demo-user-id',
         email: email,
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
         user_metadata: { name: 'Demo User' }
-      } as User;
+      } as unknown as User;
       setUser(mockUser);
       try { localStorage.setItem('auth_user', JSON.stringify(mockUser)); } catch {}
       return { data: { user: mockUser }, error: null };
