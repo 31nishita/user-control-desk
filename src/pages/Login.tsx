@@ -42,7 +42,6 @@ const Login = () => {
     setIsLoading(false);
   };
 
-
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -55,29 +54,15 @@ const Login = () => {
         description: error.message,
         variant: "destructive",
       });
-      setIsLoading(false);
-      return;
-    }
-
-    // Auto-login after successful signup (works in both demo and real modes)
-    const { error: loginError } = await signIn(email, password);
-    if (loginError) {
+    } else {
       toast({
         title: "Account Created",
         description: "Please sign in with your credentials.",
       });
-      setIsLoading(false);
-      return;
     }
 
-    toast({
-      title: "Welcome",
-      description: "Your account is ready.",
-    });
-    navigate("/dashboard");
     setIsLoading(false);
   };
-
 
   return (
     <div className="min-h-screen bg-gradient-subtle flex items-center justify-center p-4">

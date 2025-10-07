@@ -34,61 +34,8 @@ const UserManagement = () => {
     fetchUsers();
   }, []);
 
-  const notifyUserStats = (usersList: User[]) => {
-    try {
-      const total = usersList.length;
-      const active = usersList.filter((u) => u.status === "active").length;
-      // Persist latest stats for demo mode resilience
-      try { localStorage.setItem("user_stats", JSON.stringify({ total, active })); } catch {}
-      window.dispatchEvent(
-        new CustomEvent("users:changed", { detail: { total, active } })
-      );
-    } catch {}
-  };
-
   const fetchUsers = async () => {
     try {
-      // Check if Supabase is properly configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      
-      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-        // Demo mode - use mock data
-        const mockUsers: User[] = [
-          {
-            id: '1',
-            name: 'John Doe',
-            email: 'john@example.com',
-            role: 'manager',
-            status: 'active',
-            phone: '+1-555-0123',
-            joinDate: '2024-01-15'
-          },
-          {
-            id: '2',
-            name: 'Jane Smith',
-            email: 'jane@example.com',
-            role: 'user',
-            status: 'active',
-            phone: '+1-555-0124',
-            joinDate: '2024-02-20'
-          },
-          {
-            id: '3',
-            name: 'Bob Johnson',
-            email: 'bob@example.com',
-            role: 'admin',
-            status: 'inactive',
-            phone: '+1-555-0125',
-            joinDate: '2024-03-10'
-          }
-        ];
-        setUsers(mockUsers);
-        notifyUserStats(mockUsers);
-        setIsLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -106,7 +53,6 @@ const UserManagement = () => {
         joinDate: row.created_at ? new Date(row.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       }));
       setUsers(formattedUsers);
-      notifyUserStats(formattedUsers);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -121,22 +67,6 @@ const UserManagement = () => {
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      // Check if Supabase is properly configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      
-      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-        // Demo mode - just remove from local state
-        const updated = users.filter((user) => user.id !== userId);
-        setUsers(updated);
-        notifyUserStats(updated);
-        toast({
-          title: "User Deleted",
-          description: "User has been successfully removed from the system.",
-        });
-        return;
-      }
-
       const { error } = await supabase
         .from("profiles")
         .delete()
@@ -144,9 +74,7 @@ const UserManagement = () => {
 
       if (error) throw error;
 
-      const updated = users.filter((user) => user.id !== userId);
-      setUsers(updated);
-      notifyUserStats(updated);
+      setUsers(users.filter((user) => user.id !== userId));
       toast({
         title: "User Deleted",
         description: "User has been successfully removed from the system.",
@@ -169,26 +97,6 @@ const UserManagement = () => {
     if (!editingUser) return;
 
     try {
-      // Check if Supabase is properly configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      
-      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-        // Demo mode - just update local state
-        const updated = users.map((user) =>
-          user.id === editingUser.id ? { ...user, ...userData } : user
-        );
-        setUsers(updated);
-        notifyUserStats(updated);
-        toast({
-          title: "User Updated",
-          description: "User information has been successfully updated.",
-        });
-        setIsEditDialogOpen(false);
-        setEditingUser(null);
-        return;
-      }
-
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -203,11 +111,11 @@ const UserManagement = () => {
 
       if (error) throw error;
 
-      const updated = users.map((user) =>
-        user.id === editingUser.id ? { ...user, ...userData } : user
+      setUsers(
+        users.map((user) =>
+          user.id === editingUser.id ? { ...user, ...userData } : user
+        )
       );
-      setUsers(updated);
-      notifyUserStats(updated);
       toast({
         title: "User Updated",
         description: "User information has been successfully updated.",
@@ -225,32 +133,6 @@ const UserManagement = () => {
 
   const handleAddUser = async (userData: Omit<User, "id">) => {
     try {
-      // Check if Supabase is properly configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      
-      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
-        // Demo mode - just add to local state
-        const newUser: User = {
-          id: String(Date.now()), // Generate a simple ID
-          name: userData.name,
-          email: userData.email,
-          role: userData.role,
-          status: userData.status,
-          phone: userData.phone,
-          joinDate: new Date().toISOString().split("T")[0],
-        };
-        const updated = [newUser, ...users];
-        setUsers(updated);
-        notifyUserStats(updated);
-        toast({
-          title: "User Added",
-          description: "New user has been successfully added.",
-        });
-        setIsAddDialogOpen(false);
-        return;
-      }
-
       // First, create the auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email,
@@ -292,9 +174,7 @@ const UserManagement = () => {
         phone: data.phone || undefined,
         joinDate: data.created_at ? new Date(data.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       };
-      const updated = [newUser, ...users];
-      setUsers(updated);
-      notifyUserStats(updated);
+      setUsers([newUser, ...users]);
       toast({
         title: "User Added",
         description: "New user has been successfully added. A temporary password has been generated.",
