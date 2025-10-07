@@ -34,6 +34,18 @@ const UserManagement = () => {
     fetchUsers();
   }, []);
 
+  const notifyUserStats = (usersList: User[]) => {
+    try {
+      const total = usersList.length;
+      const active = usersList.filter((u) => u.status === "active").length;
+      // Persist latest stats for demo mode resilience
+      try { localStorage.setItem("user_stats", JSON.stringify({ total, active })); } catch {}
+      window.dispatchEvent(
+        new CustomEvent("users:changed", { detail: { total, active } })
+      );
+    } catch {}
+  };
+
   const fetchUsers = async () => {
     try {
       const { data, error } = await supabase
@@ -53,6 +65,7 @@ const UserManagement = () => {
         joinDate: row.created_at ? new Date(row.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       }));
       setUsers(formattedUsers);
+      notifyUserStats(formattedUsers);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -74,7 +87,9 @@ const UserManagement = () => {
 
       if (error) throw error;
 
-      setUsers(users.filter((user) => user.id !== userId));
+      const updated = users.filter((user) => user.id !== userId);
+      setUsers(updated);
+      notifyUserStats(updated);
       toast({
         title: "User Deleted",
         description: "User has been successfully removed from the system.",
@@ -111,11 +126,11 @@ const UserManagement = () => {
 
       if (error) throw error;
 
-      setUsers(
-        users.map((user) =>
-          user.id === editingUser.id ? { ...user, ...userData } : user
-        )
+      const updated = users.map((user) =>
+        user.id === editingUser.id ? { ...user, ...userData } : user
       );
+      setUsers(updated);
+      notifyUserStats(updated);
       toast({
         title: "User Updated",
         description: "User information has been successfully updated.",
@@ -174,7 +189,9 @@ const UserManagement = () => {
         phone: data.phone || undefined,
         joinDate: data.created_at ? new Date(data.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       };
-      setUsers([newUser, ...users]);
+      const updated = [newUser, ...users];
+      setUsers(updated);
+      notifyUserStats(updated);
       toast({
         title: "User Added",
         description: "New user has been successfully added. A temporary password has been generated.",
