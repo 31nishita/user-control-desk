@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Shield, Eye, EyeOff } from "lucide-react";
@@ -117,18 +116,16 @@ const Login = () => {
             >
               {isLoading ? "Signing In..." : "Sign In"}
             </Button>
-            
-            <div className="text-center">
-              <Button
-                type="button"
-                variant="link"
-                className="text-sm text-muted-foreground hover:text-primary"
-                onClick={() => navigate('/forgot-password')}
-              >
-                Forgot your password?
-              </Button>
-            </div>
           </form>
+          
+          <div className="mt-4 text-center">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-muted-foreground hover:text-foreground transition-smooth underline-offset-4 hover:underline"
+            >
+              Forgot your password?
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

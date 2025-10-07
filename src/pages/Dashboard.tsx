@@ -1,23 +1,19 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, Users, Settings, Shield } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
+import PasswordUpdate from "@/components/PasswordUpdate";
+import ForgotPasswordSettings from "@/components/ForgotPasswordSettings";
 import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("users");
   const { toast } = useToast();
   const { signOut, user } = useAuth();
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -37,6 +33,35 @@ const Dashboard = () => {
     let mounted = true;
     const load = async () => {
       try {
+        // Check if Supabase is properly configured
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        
+        if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+          // For demo mode, use last known stats if available, otherwise compute from local list
+          try {
+            const cached = localStorage.getItem('user_stats');
+            if (cached) {
+              const { total, active } = JSON.parse(cached);
+              if (!mounted) return;
+              setStats([
+                { title: "Total Users", value: String(total ?? 0), icon: Users, color: "text-primary" },
+                { title: "Active Users", value: String(active ?? 0), icon: Shield, color: "text-success" },
+                { title: "Admin Access", value: "Demo Mode", icon: Settings, color: "text-warning" },
+              ]);
+              return;
+            }
+          } catch {}
+          // fallback default
+          if (!mounted) return;
+          setStats([
+            { title: "Total Users", value: "0", icon: Users, color: "text-primary" },
+            { title: "Active Users", value: "0", icon: Shield, color: "text-success" },
+            { title: "Admin Access", value: "Demo Mode", icon: Settings, color: "text-warning" },
+          ]);
+          return;
+        }
+
         const { count: totalUsers } = await supabase
           .from("profiles")
           .select("*", { count: "exact", head: true });
@@ -65,7 +90,7 @@ const Dashboard = () => {
       setStats([
         { title: "Total Users", value: String(detail.total ?? 0), icon: Users, color: "text-primary" },
         { title: "Active Users", value: String(detail.active ?? 0), icon: Shield, color: "text-success" },
-        { title: "Admin Access", value: "Active", icon: Settings, color: "text-warning" },
+        { title: "Admin Access", value: import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY && import.meta.env.VITE_SUPABASE_URL !== 'https://placeholder.supabase.co' && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY !== 'placeholder-key' ? "Active" : "Demo Mode", icon: Settings, color: "text-warning" },
       ]);
     };
     window.addEventListener("users:changed", onUsersChanged as EventListener);
@@ -76,67 +101,6 @@ const Dashboard = () => {
       window.removeEventListener("users:changed", onUsersChanged as EventListener);
     };
   }, []);
-
-  const validatePasswordStrength = (password: string) => {
-    const lengthOk = password.length >= 8;
-    const hasUpper = /[A-Z]/.test(password);
-    const hasLower = /[a-z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    const hasSpecial = /[^A-Za-z0-9]/.test(password);
-    return lengthOk && hasUpper && hasLower && hasNumber && hasSpecial;
-  };
-
-  const handleUpdatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user?.email) {
-      toast({ title: "Not authenticated", description: "Please login again.", variant: "destructive" });
-      return;
-    }
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      toast({ title: "Missing fields", description: "Fill out all password fields.", variant: "destructive" });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast({ title: "Passwords do not match", description: "New password and confirmation must match.", variant: "destructive" });
-      return;
-    }
-    if (!validatePasswordStrength(newPassword)) {
-      toast({
-        title: "Weak password",
-        description: "Use 8+ chars with upper, lower, number, and special.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setIsUpdatingPassword(true);
-
-      // Verify current password by re-authenticating
-      const { error: verifyError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
-      });
-      if (verifyError) {
-        toast({ title: "Current password incorrect", description: "Please try again.", variant: "destructive" });
-        return;
-      }
-
-      // Update password
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) {
-        toast({ title: "Update failed", description: error.message, variant: "destructive" });
-        return;
-      }
-
-      toast({ title: "Password updated", description: "Your password has been changed." });
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } finally {
-      setIsUpdatingPassword(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
@@ -239,62 +203,29 @@ const Dashboard = () => {
         {activeTab === "users" && <UserManagement />}
         
         {activeTab === "settings" && (
-          <Card className="bg-gradient-card border-border/50 shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Settings className="w-5 h-5" />
-                <span>Account Settings</span>
-              </CardTitle>
-              <CardDescription>
-                Update your password and manage your account
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleUpdatePassword} className="space-y-6 max-w-md">
-                <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Current Password</Label>
-                  <Input
-                    id="currentPassword"
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                  />
+          <div className="space-y-6">
+            <PasswordUpdate />
+            
+            <ForgotPasswordSettings />
+            
+            <Card className="bg-gradient-card border-border/50 shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Settings className="w-5 h-5" />
+                  <span>System Settings</span>
+                </CardTitle>
+                <CardDescription>
+                  Additional system-wide configuration options
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <Settings className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">More settings options coming soon</p>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">New Password</Label>
-                  <Input
-                    id="newPassword"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use 8+ characters, including upper, lower, number, and special.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter new password"
-                  />
-                </div>
-
-                <div className="pt-2">
-                  <Button type="submit" disabled={isUpdatingPassword} className="bg-gradient-primary">
-                    {isUpdatingPassword ? "Updating..." : "Update Password"}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </div>

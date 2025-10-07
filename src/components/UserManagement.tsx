@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Pencil, Trash2, Plus, Search, Mail, Phone, Calendar, User } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, Mail, Phone, Calendar, User, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface User {
@@ -39,7 +39,11 @@ const UserManagement = () => {
       const total = usersList.length;
       const active = usersList.filter((u) => u.status === "active").length;
       // Persist latest stats for demo mode resilience
-      try { localStorage.setItem("user_stats", JSON.stringify({ total, active })); } catch {}
+      try { 
+        localStorage.setItem("user_stats", JSON.stringify({ total, active }));
+        // Also persist the users list for demo mode
+        localStorage.setItem("dashboard_users", JSON.stringify(usersList));
+      } catch {}
       window.dispatchEvent(
         new CustomEvent("users:changed", { detail: { total, active } })
       );
@@ -48,6 +52,26 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
+      // Check if Supabase is properly configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+        // Demo mode - load users from localStorage or start with empty array
+        try {
+          const storedUsers = localStorage.getItem('dashboard_users');
+          const users = storedUsers ? JSON.parse(storedUsers) : [];
+          setUsers(users);
+          notifyUserStats(users);
+        } catch {
+          // If there's an error parsing, start fresh
+          setUsers([]);
+          notifyUserStats([]);
+        }
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -78,8 +102,66 @@ const UserManagement = () => {
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleClearAllUsers = async () => {
+    try {
+      // Check if Supabase is properly configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+        // Demo mode - clear localStorage and reset state
+        localStorage.removeItem('dashboard_users');
+        localStorage.setItem('user_stats', JSON.stringify({ total: 0, active: 0 }));
+        setUsers([]);
+        notifyUserStats([]);
+        toast({
+          title: "All Users Cleared",
+          description: "All users have been removed from the system.",
+        });
+        return;
+      }
+
+      // In production mode, clear all profiles
+      const { error } = await supabase
+        .from("profiles")
+        .delete()
+        .neq('id', '0'); // Delete all except non-existent ID
+
+      if (error) throw error;
+
+      setUsers([]);
+      notifyUserStats([]);
+      toast({
+        title: "All Users Cleared",
+        description: "All users have been removed from the system.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     try {
+      // Check if Supabase is properly configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+        // Demo mode - just remove from local state
+        const updated = users.filter((user) => user.id !== userId);
+        setUsers(updated);
+        notifyUserStats(updated);
+        toast({
+          title: "User Deleted",
+          description: "User has been successfully removed from the system.",
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from("profiles")
         .delete()
@@ -112,6 +194,26 @@ const UserManagement = () => {
     if (!editingUser) return;
 
     try {
+      // Check if Supabase is properly configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+        // Demo mode - just update local state
+        const updated = users.map((user) =>
+          user.id === editingUser.id ? { ...user, ...userData } : user
+        );
+        setUsers(updated);
+        notifyUserStats(updated);
+        toast({
+          title: "User Updated",
+          description: "User information has been successfully updated.",
+        });
+        setIsEditDialogOpen(false);
+        setEditingUser(null);
+        return;
+      }
+
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -148,6 +250,32 @@ const UserManagement = () => {
 
   const handleAddUser = async (userData: Omit<User, "id">) => {
     try {
+      // Check if Supabase is properly configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-key') {
+        // Demo mode - just add to local state
+        const newUser: User = {
+          id: String(Date.now()), // Generate a simple ID
+          name: userData.name,
+          email: userData.email,
+          role: userData.role,
+          status: userData.status,
+          phone: userData.phone,
+          joinDate: new Date().toISOString().split("T")[0],
+        };
+        const updated = [newUser, ...users];
+        setUsers(updated);
+        notifyUserStats(updated);
+        toast({
+          title: "User Added",
+          description: "New user has been successfully added.",
+        });
+        setIsAddDialogOpen(false);
+        return;
+      }
+
       // First, create the auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email,
@@ -233,20 +361,33 @@ const UserManagement = () => {
               </CardDescription>
             </div>
             
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-gradient-primary hover:shadow-glow transition-spring">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add User
+            <div className="flex space-x-2">
+              {users.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={handleClearAllUsers}
+                  className="text-destructive hover:bg-destructive/10 hover:border-destructive/20 transition-smooth"
+                >
+                  <AlertTriangle className="w-4 h-4 mr-2" />
+                  Clear All
                 </Button>
-              </DialogTrigger>
-              <UserDialog
-                title="Add New User"
-                description="Create a new user account with role and permissions"
-                onSave={handleAddUser}
-                onCancel={() => setIsAddDialogOpen(false)}
-              />
-            </Dialog>
+              )}
+              
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-gradient-primary hover:shadow-glow transition-spring">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add User
+                  </Button>
+                </DialogTrigger>
+                <UserDialog
+                  title="Add New User"
+                  description="Create a new user account with role and permissions"
+                  onSave={handleAddUser}
+                  onCancel={() => setIsAddDialogOpen(false)}
+                />
+              </Dialog>
+            </div>
           </div>
         </CardHeader>
         
@@ -265,7 +406,42 @@ const UserManagement = () => {
 
       {/* Users List */}
       <div className="grid gap-4">
-        {filteredUsers.map((user) => (
+        {filteredUsers.length === 0 && users.length === 0 ? (
+          <Card className="bg-gradient-card border-border/50 shadow-card">
+            <CardContent className="p-12 text-center">
+              <User className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">No Users Found</h3>
+              <p className="text-muted-foreground mb-4">
+                Get started by adding your first user to the system.
+              </p>
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-gradient-primary hover:shadow-glow transition-spring">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add First User
+                  </Button>
+                </DialogTrigger>
+                <UserDialog
+                  title="Add New User"
+                  description="Create a new user account with role and permissions"
+                  onSave={handleAddUser}
+                  onCancel={() => setIsAddDialogOpen(false)}
+                />
+              </Dialog>
+            </CardContent>
+          </Card>
+        ) : filteredUsers.length === 0 ? (
+          <Card className="bg-gradient-card border-border/50 shadow-card">
+            <CardContent className="p-12 text-center">
+              <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">No Results Found</h3>
+              <p className="text-muted-foreground">
+                No users match your search criteria. Try adjusting your search terms.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          filteredUsers.map((user) => (
           <Card key={user.id} className="bg-gradient-card border-border/50 shadow-card hover:shadow-elegant transition-smooth">
             <CardContent className="p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -328,7 +504,8 @@ const UserManagement = () => {
               </div>
             </CardContent>
           </Card>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Edit User Dialog */}
