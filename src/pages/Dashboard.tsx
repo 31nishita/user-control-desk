@@ -8,11 +8,10 @@ import { LogOut, Users, Settings, Shield } from "lucide-react";
 import UserManagement from "@/components/UserManagement";
 import PasswordUpdate from "@/components/PasswordUpdate";
 import ForgotPasswordSettings from "@/components/ForgotPasswordSettings";
-import VlogManagement from "@/components/VlogManagement";
 import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState("vlogs");
+  const [activeTab, setActiveTab] = useState("users");
   const { toast } = useToast();
   const { signOut, user } = useAuth();
 
@@ -172,19 +171,6 @@ const Dashboard = () => {
         <div className="mb-6">
           <div className="flex space-x-1 bg-muted/30 p-1 rounded-lg w-fit">
             <Button
-              variant={activeTab === "vlogs" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("vlogs")}
-              className={`transition-smooth ${
-                activeTab === "vlogs" 
-                  ? "bg-gradient-primary shadow-glow" 
-                  : "hover:bg-muted/50"
-              }`}
-            >
-              <Shield className="w-4 h-4 mr-2" />
-              My Vlogs
-            </Button>
-            <Button
               variant={activeTab === "users" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveTab("users")}
@@ -214,8 +200,6 @@ const Dashboard = () => {
         </div>
 
         {/* Content */}
-        {activeTab === "vlogs" && <VlogManagement />}
-        
         {activeTab === "users" && <UserManagement />}
         
         {activeTab === "settings" && (
